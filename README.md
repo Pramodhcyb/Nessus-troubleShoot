@@ -27,7 +27,5 @@ This script (run as Administrator on the target VM) performs the following check
 - Changing services, execution policy or permissions may have security implications.  
 - For production usage, ensure proper governance and least-privilege model.
 
-## License
 
-Specify your preferred license (MIT / Apache / etc).
 
