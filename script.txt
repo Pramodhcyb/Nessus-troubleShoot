@@ -1,1 +1,74 @@
+# Run this script as Administrator on the target machine
+# 1. Check if required services are running
+Write-Host "Checking required services..."
+$services = @("RemoteRegistry", "WinRM", "WMI")
+foreach ($svc in $services) {
+    $status = Get-Service -Name $svc -ErrorAction SilentlyContinue
+    if ($status -and $status.Status -eq "Running") {
+        Write-Host "$svc is running." -ForegroundColor Green
+    } elseif ($status) {
+        Write-Host "$svc is NOT running. Please start this service." -ForegroundColor Red
+    } else {
+        Write-Host "$svc service not found on this system (may not be applicable)." -ForegroundColor Yellow
+    }
+}
+# 2. Test WinRM connectivity
+Write-Host "`nTesting WinRM connectivity..."
+try {
+    Test-WsMan -ComputerName localhost -ErrorAction Stop | Out-Null
+    Write-Host "WinRM is configured correctly." -ForegroundColor Green
+} catch {
+    Write-Host "WinRM is NOT configured properly. Please check WinRM settings." -ForegroundColor Red
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+# 3. Check for local admin rights
+Write-Host "`nChecking local admin rights..."
+$admin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+if ($admin) {
+    Write-Host "User has local administrator rights." -ForegroundColor Green
+} else {
+    Write-Host "User does NOT have local administrator rights." -ForegroundColor Red
+    Write-Host "Note: Credentialed scans generally require local admin privileges (or equivalent) on Windows targets." -ForegroundColor Yellow
+}
+# 4. Check for Credentialed Scan Access (WMI)
+Write-Host "`nTesting credentialed scan access (WMI Query)..."
+$hostname = $env:COMPUTERNAME
+try {
+    $wmi = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $hostname -ErrorAction Stop
+    if ($wmi) {
+        Write-Host "Credentialed scan access is working (WMI query successful)." -ForegroundColor Green
+    } else {
+        Write-Host "Credentialed scan access FAILED (WMI query returned no data)." -ForegroundColor Red
+    }
+} catch {
+    Write-Host "Credentialed scan access FAILED (WMI query failed)." -ForegroundColor Red
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+# 5. Check Patch Management Readiness
+Write-Host "`nChecking patch scan readiness..."
+try {
+    $hotfixes = Get-HotFix -ErrorAction Stop
+    if ($hotfixes.Count -gt 0) {
+        Write-Host "Hotfix data retrieved. Patch scan should work." -ForegroundColor Green
+    } else {
+        Write-Host "No hotfix data found. Patch scan may fail." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "Unable to retrieve Hotfix data. This may indicate insufficient permissions or WMI issues." -ForegroundColor Red
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+# 6. Check for PowerShell Audit Readiness
+Write-Host "`nChecking PowerShell execution policy..."
+try {
+    $policy = Get-ExecutionPolicy -Scope LocalMachine -ErrorAction Stop
+} catch {
+    $policy = Get-ExecutionPolicy -ErrorAction SilentlyContinue
+}
+Write-Host "Current Execution Policy: $policy"
+if ($policy -eq "Restricted") {
+    Write-Host "Execution Policy is Restricted. Change to RemoteSigned or Unrestricted for audit scripts." -ForegroundColor Red
+} else {
+    Write-Host "Execution Policy allows script execution." -ForegroundColor Green
+}
+Write-Host "`nScript completed. Review the outputs above for remediation steps."
 
